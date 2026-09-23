@@ -15,7 +15,8 @@ class CostmapCore {
     // Set grid size/resolution and how far to inflate around obstacles
     void initCostmap(double resolution, int width, int height, double inflation_radius);
 
-    // Turn one laser scan into an OccupancyGrid
+    // Turn one laser scan into an OccupancyGrid: -1 = never seen by a beam,
+    // 0 = a beam passed through it (free), 1..100 = obstacle / inflation cost
     nav_msgs::msg::OccupancyGrid processScan(const sensor_msgs::msg::LaserScan::SharedPtr scan);
 
   private:
@@ -29,6 +30,7 @@ class CostmapCore {
     double inflation_radius_;
     int max_cost_;
 
+    void markFreeSpace(std::vector<int8_t>& grid, const sensor_msgs::msg::LaserScan& scan);
     void markObstacle(std::vector<int8_t>& grid, int gx, int gy);
     void inflate(std::vector<int8_t>& grid);
 };
