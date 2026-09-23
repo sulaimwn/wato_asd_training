@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <memory>
@@ -34,6 +35,13 @@ MapMemoryNode::MapMemoryNode() : Node("map_memory"), map_memory_(robot::MapMemor
 }
 
 void MapMemoryNode::costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
+  // The sim's first few scans after startup come back empty. A costmap with no
+  // obstacles only turns unknown cells into free ones, which the planner treats
+  // the same, so skip it. Otherwise a blank scan uses up the first map update
+  // and the next one is 1.5 m of driving away, possibly into what we didn't map.
+  bool has_obstacle = std::any_of(msg->data.begin(), msg->data.end(), [](int8_t v) { return v > 0; });
+  if (!has_obstacle) return;
+
   // Pair the costmap with where the robot was when the scan was taken, not
   // where it is when the timer fires; otherwise obstacles smear while turning
   Pose2D pose;
