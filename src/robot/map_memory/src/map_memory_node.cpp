@@ -14,6 +14,7 @@ MapMemoryNode::MapMemoryNode() : Node("map_memory"), map_memory_(robot::MapMemor
   double origin_y = this->declare_parameter<double>("origin_y", -20.0);
   std::string frame_id = this->declare_parameter<std::string>("frame_id", "sim_world");
   distance_threshold_ = this->declare_parameter<double>("distance_threshold", 1.5);
+  max_update_interval_ = this->declare_parameter<double>("max_update_interval", 2.0);
   int update_period_ms = this->declare_parameter<int>("update_period_ms", 1000);
 
   map_memory_.initMap(resolution, width, height, origin_x, origin_y, frame_id);
@@ -105,17 +106,22 @@ bool MapMemoryNode::poseAt(double t, Pose2D& pose) const {
   return false;
 }
 
-// Timer-based map update: only fuse when the robot has moved far enough
+// Timer-based map update: fuse when the robot has moved far enough, or when
+// the last fusion is getting old. The second rule matters when the robot stops
+// or turns on the spot (e.g. at an exploration frontier): it can see new
+// space without moving 1.5 m, and the map should show it.
 void MapMemoryNode::updateMap() {
   if (!have_costmap_) return;
 
   const Pose2D& p = costmap_pose_;
   double moved = std::hypot(p.x - last_update_x_, p.y - last_update_y_);
-  if (first_update_done_ && moved < distance_threshold_) return;
+  double age = first_update_done_ ? (this->now() - last_update_time_).seconds() : 0.0;
+  if (first_update_done_ && moved < distance_threshold_ && age < max_update_interval_) return;
 
   map_memory_.integrateCostmap(latest_costmap_, p.x, p.y, p.yaw);
   last_update_x_ = p.x;
   last_update_y_ = p.y;
+  last_update_time_ = this->now();
   first_update_done_ = true;
 
   publishMap();

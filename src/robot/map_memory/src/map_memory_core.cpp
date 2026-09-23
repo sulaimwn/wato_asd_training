@@ -74,9 +74,9 @@ void MapMemoryCore::integrateCostmap(const nav_msgs::msg::OccupancyGrid& costmap
       int8_t cost = costmap.data[cy * c_w + cx];
       if (cost < 0) continue;  // unknown in the costmap: keep what we had
 
-      // Keep the highest cost seen. The costmap marks everything it can't see
-      // (e.g. behind a wall) as free, so letting free cells overwrite would
-      // erase obstacles we saw earlier.
+      // Keep the highest cost seen. The world is static, and a beam grazing
+      // past an obstacle can mark part of its cell free from one angle, so a
+      // free reading is never allowed to erase an obstacle we saw earlier.
       int8_t& cell = global_map_.data[my * m_w + mx];
       cell = std::max(cell, cost);
     }

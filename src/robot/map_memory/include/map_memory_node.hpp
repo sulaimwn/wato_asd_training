@@ -41,12 +41,14 @@ class MapMemoryNode : public rclcpp::Node {
     // Recent odometry, used to look up the pose at a costmap's timestamp
     std::deque<Pose2D> odom_history_;
 
-    // Robot position at the last map update
+    // Robot position and time at the last map update
     double last_update_x_ = 0.0;
     double last_update_y_ = 0.0;
+    rclcpp::Time last_update_time_;
     bool first_update_done_ = false;
 
     double distance_threshold_;
+    double max_update_interval_;
 
     bool poseAt(double t, Pose2D& pose) const;
     void publishMap();
