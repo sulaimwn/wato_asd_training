@@ -71,6 +71,108 @@
         },
         "frame:sim_world": {
           "visible": true
+        },
+        "frame:wall_north": {
+          "visible": false
+        },
+        "frame:wall_south": {
+          "visible": false
+        },
+        "frame:wall_east": {
+          "visible": false
+        },
+        "frame:wall_west": {
+          "visible": false
+        },
+        "frame:wall_hall_n1": {
+          "visible": false
+        },
+        "frame:wall_hall_n2": {
+          "visible": false
+        },
+        "frame:wall_hall_n3": {
+          "visible": false
+        },
+        "frame:wall_hall_s1": {
+          "visible": false
+        },
+        "frame:wall_hall_s2": {
+          "visible": false
+        },
+        "frame:wall_hall_s3": {
+          "visible": false
+        },
+        "frame:wall_storage": {
+          "visible": false
+        },
+        "frame:wall_office_1": {
+          "visible": false
+        },
+        "frame:wall_office_2": {
+          "visible": false
+        },
+        "frame:rack": {
+          "visible": false
+        },
+        "frame:carton_0": {
+          "visible": false
+        },
+        "frame:carton_1": {
+          "visible": false
+        },
+        "frame:carton_2": {
+          "visible": false
+        },
+        "frame:carton_3": {
+          "visible": false
+        },
+        "frame:carton_4": {
+          "visible": false
+        },
+        "frame:pallets_1": {
+          "visible": false
+        },
+        "frame:pallets_2": {
+          "visible": false
+        },
+        "frame:pillar_1": {
+          "visible": false
+        },
+        "frame:pillar_2": {
+          "visible": false
+        },
+        "frame:lane_north": {
+          "visible": false
+        },
+        "frame:lane_south": {
+          "visible": false
+        },
+        "frame:desk_1": {
+          "visible": false
+        },
+        "frame:desk_2": {
+          "visible": false
+        },
+        "frame:truck": {
+          "visible": false
+        },
+        "frame:crate_1": {
+          "visible": false
+        },
+        "frame:crate_2": {
+          "visible": false
+        },
+        "frame:wall1_link": {
+          "visible": false
+        },
+        "frame:wall2_link": {
+          "visible": false
+        },
+        "frame:wall3_link": {
+          "visible": false
+        },
+        "frame:wall4_link": {
+          "visible": false
         }
       },
       "topics": {
@@ -113,12 +215,12 @@
         "/map": {
           "visible": true,
           "colorMode": "costmap",
-          "alpha": 0.5016
+          "alpha": 0.85
         },
         "/costmap": {
-          "visible": true,
+          "visible": false,
           "colorMode": "costmap",
-          "alpha": 1
+          "alpha": 0.6
         },
         "/path": {
           "visible": true,
@@ -126,6 +228,9 @@
             "#90ff6bff",
             "#eeff6b80"
           ]
+        },
+        "/explore/frontiers": {
+          "visible": true
         }
       },
       "layers": {
@@ -170,14 +275,14 @@
         "cadf14d8-072e-4af6-8fd0-60bf81d00399": {
           "visible": true,
           "frameLocked": true,
-          "label": "URDF",
+          "label": "World (from /env_description)",
           "instanceId": "cadf14d8-072e-4af6-8fd0-60bf81d00399",
           "layerId": "foxglove.Urdf",
-          "sourceType": "url",
+          "sourceType": "topic",
           "url": "https://raw.githubusercontent.com/WATonomous/wato_asd_training/refs/heads/main/src/gazebo/launch/env.urdf",
           "filePath": "",
           "parameter": "",
-          "topic": "",
+          "topic": "/env_description",
           "framePrefix": "",
           "displayMode": "auto",
           "fallbackColor": "#454545",
@@ -258,6 +363,56 @@
       "imageMode": {
         "imageTopic": "/camera"
       }
+    },
+    "Indicator!explorestatus": {
+      "path": "/explore/status.data",
+      "style": "background",
+      "fallbackColor": "#495057",
+      "fallbackLabel": "Explorer not running",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "EXPLORING",
+          "color": "#1c7ed6",
+          "label": "Exploring"
+        },
+        {
+          "operator": "=",
+          "rawValue": "RETURNING_HOME",
+          "color": "#f08c00",
+          "label": "Returning home"
+        },
+        {
+          "operator": "=",
+          "rawValue": "COMPLETE",
+          "color": "#2f9e44",
+          "label": "Map complete"
+        },
+        {
+          "operator": "=",
+          "rawValue": "IDLE",
+          "color": "#495057",
+          "label": "Exploration off"
+        }
+      ]
+    },
+    "Publish!explorestart": {
+      "topicName": "/explore/enable",
+      "datatype": "std_msgs/msg/Bool",
+      "buttonText": "Start exploring",
+      "buttonTooltip": "Publish true on /explore/enable",
+      "buttonColor": "#2f9e44",
+      "advancedView": false,
+      "value": "{\n  \"data\": true\n}"
+    },
+    "Publish!explorestop": {
+      "topicName": "/explore/enable",
+      "datatype": "std_msgs/msg/Bool",
+      "buttonText": "Stop exploring",
+      "buttonTooltip": "Publish false on /explore/enable (also stops the robot)",
+      "buttonColor": "#e03131",
+      "advancedView": false,
+      "value": "{\n  \"data\": false\n}"
     }
   },
   "globalVariables": {},
@@ -268,9 +423,23 @@
   "layout": {
     "first": "3D!185ho2t",
     "second": {
-      "first": "Teleop!1rfn0xj",
-      "second": "Image!4fph4p5",
-      "direction": "column"
+      "first": {
+        "first": "Indicator!explorestatus",
+        "second": {
+          "first": "Publish!explorestart",
+          "second": "Publish!explorestop",
+          "direction": "row"
+        },
+        "direction": "column",
+        "splitPercentage": 45
+      },
+      "second": {
+        "first": "Teleop!1rfn0xj",
+        "second": "Image!4fph4p5",
+        "direction": "column"
+      },
+      "direction": "column",
+      "splitPercentage": 20
     },
     "direction": "row",
     "splitPercentage": 65.85648148148148
