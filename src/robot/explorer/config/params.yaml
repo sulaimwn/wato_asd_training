@@ -8,7 +8,7 @@ explorer_node:
     goal_reached_dist: 1.0          # m; this close to a frontier goal counts as reached
     frontier_resolved_radius: 1.0   # m; drop the goal once no frontier cell is this close to it (already seen)
     blacklist_radius: 1.5           # m; skip frontiers this close to a goal we reached or gave up on
-    stuck_timeout: 20.0             # s without getting 0.3 m closer before giving up on a goal
+    stuck_timeout: 20.0             # s without getting 0.3 m closer (along the planned route) before giving up on a goal
     path_fail_timeout: 4.0          # s without a path from the planner before giving up on a goal
     return_home: true               # drive back to where exploration started once the map is complete
     start_enabled: false            # true = start exploring as soon as the node starts

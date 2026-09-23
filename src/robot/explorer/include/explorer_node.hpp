@@ -55,8 +55,9 @@ class ExplorerNode : public rclcpp::Node {
     // The goal we are currently driving to
     bool have_goal_ = false;
     double goal_x_ = 0.0, goal_y_ = 0.0;
-    double best_goal_dist_ = 0.0;        // closest we've been to it
-    rclcpp::Time last_progress_time_;     // when best_goal_dist_ last improved
+    double path_length_ = -1.0;          // m, length of the planner's latest route to it (-1: none yet)
+    double best_remaining_ = 0.0;        // shortest distance-to-go seen so far
+    rclcpp::Time last_progress_time_;     // when best_remaining_ last improved
     rclcpp::Time last_path_time_;         // when the planner last sent a non-empty path
 
     // Goals we've reached or given up on; nearby frontiers are skipped

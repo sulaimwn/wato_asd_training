@@ -68,7 +68,17 @@ void ExplorerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
 
 void ExplorerNode::pathCallback(const nav_msgs::msg::Path::SharedPtr msg) {
   // The planner sends an empty path when it can't find a way (or is stopping)
-  if (!msg->poses.empty()) last_path_time_ = this->now();
+  if (msg->poses.empty()) return;
+  last_path_time_ = this->now();
+
+  // The route starts at the robot, so its length is the distance still to go
+  double length = 0.0;
+  for (size_t i = 1; i < msg->poses.size(); ++i) {
+    const auto& a = msg->poses[i - 1].pose.position;
+    const auto& b = msg->poses[i].pose.position;
+    length += std::hypot(b.x - a.x, b.y - a.y);
+  }
+  path_length_ = length;
 }
 
 void ExplorerNode::enableCallback(const std_msgs::msg::Bool::SharedPtr msg) {
@@ -113,11 +123,15 @@ void ExplorerNode::tick() {
   std::vector<robot::Frontier> frontiers = explorer_.findFrontiers(map_, robot_x_, robot_y_, &cells);
   publishMarkers(cells);
 
-  // How we're doing on the current goal
+  // How we're doing on the current goal. Progress is measured along the
+  // planner's route, not in a straight line: reaching the far side of a wall
+  // can mean driving away from the goal for a while.
   const rclcpp::Time now = this->now();
   double goal_dist = std::hypot(goal_x_ - robot_x_, goal_y_ - robot_y_);
-  if (have_goal_ && goal_dist < best_goal_dist_ - 0.3) {
-    best_goal_dist_ = goal_dist;
+  double remaining = path_length_ >= 0.0 ? path_length_ : goal_dist;
+  if (have_goal_ && (remaining < best_remaining_ - 0.3 || remaining > best_remaining_ + 1.0)) {
+    // Closer, or the planner found the old route blocked and picked a longer one
+    best_remaining_ = remaining;
     last_progress_time_ = now;
   }
   bool reached = have_goal_ && goal_dist < goal_reached_dist_;
@@ -200,7 +214,8 @@ void ExplorerNode::sendGoal(double x, double y) {
   have_goal_ = true;
   goal_x_ = x;
   goal_y_ = y;
-  best_goal_dist_ = std::hypot(x - robot_x_, y - robot_y_);
+  path_length_ = -1.0;  // until the planner sends a route for this goal
+  best_remaining_ = std::hypot(x - robot_x_, y - robot_y_);
   last_progress_time_ = last_path_time_ = this->now();
   goal_pub_->publish(goal);
 }
