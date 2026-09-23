@@ -1,3 +1,8 @@
-# planner_node:
-#   ros__parameters:
-    
+planner_node:
+  ros__parameters:
+    obstacle_threshold: 50   # map cost at/above which a cell is blocked (~0.5 m from an obstacle with 1 m inflation)
+    cost_weight: 3.0         # extra step cost per unit of map cost, keeps paths away from walls
+    escape_radius: 1.0       # m, blocked (non-lethal) cells this close to the start/goal are allowed
+    goal_tolerance: 0.5      # m, distance at which the goal counts as reached
+    goal_timeout: 120.0      # s, give up on a goal after this long
+    replan_period_ms: 500
