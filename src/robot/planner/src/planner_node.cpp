@@ -19,6 +19,9 @@ PlannerNode::PlannerNode() : Node("planner"), planner_(robot::PlannerCore(this->
       "/map", rclcpp::QoS(1).transient_local(), std::bind(&PlannerNode::mapCallback, this, std::placeholders::_1));
   goal_sub_ = this->create_subscription<geometry_msgs::msg::PointStamped>(
       "/goal_point", 10, std::bind(&PlannerNode::goalCallback, this, std::placeholders::_1));
+  // Any message here drops the current goal and stops the robot
+  cancel_sub_ = this->create_subscription<std_msgs::msg::Empty>(
+      "/goal_cancel", 10, std::bind(&PlannerNode::cancelCallback, this, std::placeholders::_1));
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
       "/odom/filtered", 10, std::bind(&PlannerNode::odomCallback, this, std::placeholders::_1));
 
@@ -46,6 +49,14 @@ void PlannerNode::goalCallback(const geometry_msgs::msg::PointStamped::SharedPtr
   state_ = State::WAITING_FOR_ROBOT_TO_REACH_GOAL;
   RCLCPP_INFO(this->get_logger(), "New goal (%.2f, %.2f)", goal_.point.x, goal_.point.y);
   planPath();
+}
+
+void PlannerNode::cancelCallback(const std_msgs::msg::Empty::SharedPtr) {
+  if (state_ == State::WAITING_FOR_ROBOT_TO_REACH_GOAL) {
+    RCLCPP_INFO(this->get_logger(), "Goal cancelled");
+  }
+  state_ = State::WAITING_FOR_GOAL;
+  publishEmptyPath();
 }
 
 void PlannerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
