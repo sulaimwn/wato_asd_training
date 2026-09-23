@@ -1,3 +1,11 @@
-# control_node:
-#   ros__parameters:
-    
+control_node:
+  ros__parameters:
+    lookahead_distance: 1.0      # m ahead of the robot (lidar) to aim at on the path
+    linear_speed: 0.5            # m/s cruise speed
+    max_angular_speed: 1.0       # rad/s; sharper turns slow the robot down instead
+    goal_tolerance: 0.2          # m from the end of the path to stop (the planner also stops us at 0.5 m)
+    slowdown_distance: 1.5       # m from the end of the path to start slowing down
+    rotate_in_place_angle: 1.05  # rad (~60 deg), turn on the spot when the target is further off than this
+    axle_offset: 1.3             # m the odometry (lidar) point sits ahead of the wheel axle (robot_env.sdf)
+    odom_timeout: 0.5            # s, stop if odometry is older than this
+    control_period_ms: 100
