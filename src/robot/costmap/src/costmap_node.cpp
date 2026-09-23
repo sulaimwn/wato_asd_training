@@ -13,7 +13,8 @@ CostmapNode::CostmapNode() : Node("costmap"), costmap_(robot::CostmapCore(this->
 
 void CostmapNode::laserCallback(const sensor_msgs::msg::LaserScan::SharedPtr scan) {
   nav_msgs::msg::OccupancyGrid costmap_msg = costmap_.processScan(scan);
-  costmap_msg.header.stamp = this->get_clock()->now();
+  // Keep the scan's (sim) time so map_memory can match it to the odometry at that instant
+  costmap_msg.header.stamp = scan->header.stamp;
   costmap_pub_->publish(costmap_msg);
 }
 

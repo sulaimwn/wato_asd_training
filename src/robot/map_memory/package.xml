@@ -2,7 +2,7 @@
 <package format="3">
   <name>map_memory</name>
   <version>0.0.0</version>
-  <description>A sample ROS package for pubsub communication</description>
+  <description>Map memory node: fuses costmaps into a global map</description>
 
   <maintainer email="e23zhou@watonomous.ca">Eddy Zhou</maintainer>
   <license>Apache2.0</license>
@@ -10,6 +10,7 @@
   <!--https://www.ros.org/reps/rep-0149.html#dependency-tags-->
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclcpp</depend>
+  <depend>nav_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
