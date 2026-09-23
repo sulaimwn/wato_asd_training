@@ -1,0 +1,15 @@
+explorer_node:
+  ros__parameters:
+    free_threshold: 50              # map cost below which a known cell is free (match the planner's obstacle_threshold)
+    frontier_max_cost: 0            # frontier cells must be seen-empty floor outside every obstacle's halo; higher values
+                                    # let the costmap's inflation into never-seen space (behind walls) pose as frontiers
+    min_frontier_size: 8            # cells (0.8 m at 0.1 m/cell); smaller frontier patches are ignored
+    escape_radius: 1.0              # m; if the robot sits in an inflated zone, search outwards through it this far
+    goal_reached_dist: 1.0          # m; this close to a frontier goal counts as reached
+    frontier_resolved_radius: 1.0   # m; drop the goal once no frontier cell is this close to it (already seen)
+    blacklist_radius: 1.5           # m; skip frontiers this close to a goal we reached or gave up on
+    stuck_timeout: 20.0             # s without getting 0.3 m closer before giving up on a goal
+    path_fail_timeout: 4.0          # s without a path from the planner before giving up on a goal
+    return_home: true               # drive back to where exploration started once the map is complete
+    start_enabled: false            # true = start exploring as soon as the node starts
+    update_period_ms: 1000

@@ -14,6 +14,7 @@
   <depend>map_memory</depend>
   <depend>planner</depend>
   <depend>control</depend>
+  <depend>explorer</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

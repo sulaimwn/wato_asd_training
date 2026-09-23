@@ -85,6 +85,27 @@ def generate_launch_description():
     ld.add_action(control_param)
     ld.add_action(control_node)
 
+    ##################### Explorer Node #####################
+    # Frontier-based autonomous exploration. Idle until something publishes
+    # std_msgs/Bool true on /explore/enable (e.g. the Foxglove layout's button).
+    explorer_pkg_prefix = get_package_share_directory('explorer')
+    explorer_param_file = os.path.join(
+        explorer_pkg_prefix, 'config', 'params.yaml')
+
+    explorer_param = DeclareLaunchArgument(
+        'explorer_param_file',
+        default_value=explorer_param_file,
+        description='Path to config file for explorer node'
+    )
+    explorer_node = Node(
+        package='explorer',
+        name='explorer_node',
+        executable='explorer_node',
+        parameters=[LaunchConfiguration('explorer_param_file')],
+    )
+    ld.add_action(explorer_param)
+    ld.add_action(explorer_node)
+
     #################### Odometry Spoof Node #####################
     odometry_spoof_node = Node(
         package='odometry_spoof',
