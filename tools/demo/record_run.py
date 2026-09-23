@@ -5,12 +5,13 @@ Runs inside the robot container (it only needs rclpy and the message types).
 Every PERIOD seconds it saves a top-down PNG of the map (with the robot,
 planned path, frontiers and goal drawn on it), the robot's camera image, and
 one line of stats. It also tracks how close the robot's body gets to any
-obstacle, using the warehouse's true geometry from make_warehouse.py.
+obstacle, using the world's true geometry from make_worlds.py.
 
-    python3 record_run.py OUT_DIR [PERIOD_S] [TIMEOUT_S]
+    python3 record_run.py OUT_DIR WORLD [PERIOD_S] [TIMEOUT_S]
 
-Stops a few seconds after the explorer reports COMPLETE. make_warehouse.py
-must be importable (copy it next to this file). See tools/demo/README.md.
+WORLD is the running world (warehouse or watonomous). Stops a few seconds
+after the explorer reports COMPLETE. src/gazebo/tools/make_worlds.py must be
+importable (copy it next to this file). See tools/demo/README.md.
 """
 import json
 import math
@@ -28,15 +29,15 @@ from std_msgs.msg import String
 from visualization_msgs.msg import MarkerArray
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import make_warehouse as world  # noqa: E402
+import make_worlds  # noqa: E402
 
-SOLID = [o for o in world.OBSTACLES if o["solid"] and o["h"] > 0.9]
-LIDAR_AHEAD = world.LIDAR_AHEAD_OF_AXLE
-VIEW = 15.5  # m; frames show the world from -VIEW to +VIEW in x and y
+WORLD = None   # set in main()
+SOLID = []
+LIDAR_AHEAD = make_worlds.LIDAR_AHEAD_OF_AXLE
 
 COLORS = {
-    "unknown": (29, 33, 41), "free": (233, 236, 239), "obstacle": (201, 42, 42),
-    "halo_low": (246, 215, 167), "halo_high": (232, 89, 12),
+    "unknown": (29, 33, 41), "free": (233, 236, 239), "obstacle": (24, 24, 28),
+    "halo_low": (240, 228, 208), "halo_high": (240, 160, 96),
     "frontier": (21, 170, 191), "trail": (120, 190, 130), "path": (47, 158, 68),
     "goal": (230, 73, 128), "robot": (34, 139, 230), "home": (47, 158, 68),
 }
@@ -54,7 +55,31 @@ def footprint(lx, ly, yaw):
 
 def body_clearance(lx, ly, yaw):
     pts = footprint(lx, ly, yaw)
-    return min((min(world.distance_to(o, x, y) for x, y in pts), o["name"]) for o in SOLID)
+    return min((min(make_worlds.distance_to(o, x, y) for x, y in pts), o["name"]) for o in SOLID)
+
+
+def floor_cells(m):
+    """Map indices of the world's floor that isn't under an obstacle, for coverage."""
+    w, h, res = m.info.width, m.info.height, m.info.resolution
+    ox, oy = m.info.origin.position.x, m.info.origin.position.y
+    hx, hy = WORLD["half_size"]
+    covered = set()
+    for o in SOLID:
+        r = math.hypot(o.get("sx", 0), o.get("sy", 0)) / 2 if o["shape"] == "box" else o["r"]
+        i0, i1 = int((o["x"] - r - ox) / res), int((o["x"] + r - ox) / res) + 1
+        j0, j1 = int((o["y"] - r - oy) / res), int((o["y"] + r - oy) / res) + 1
+        for j in range(max(j0, 0), min(j1, h)):
+            for i in range(max(i0, 0), min(i1, w)):
+                if make_worlds.distance_to(o, ox + (i + 0.5) * res, oy + (j + 0.5) * res) == 0:
+                    covered.add(j * w + i)
+    cells = []
+    for j in range(h):
+        y = oy + (j + 0.5) * res
+        if abs(y) < hy - 0.3:
+            for i in range(w):
+                if abs(ox + (i + 0.5) * res) < hx - 0.3 and j * w + i not in covered:
+                    cells.append(j * w + i)
+    return cells
 
 
 def write_png(path, w, h, rgb):
@@ -94,14 +119,7 @@ class Recorder:
     def on_map(self, m):
         self.map = m
         if self.floor_cells is None:
-            w, res = m.info.width, m.info.resolution
-            ox, oy = m.info.origin.position.x, m.info.origin.position.y
-            self.floor_cells = [
-                j * w + i
-                for j in range(m.info.height) for i in range(w)
-                if abs(ox + (i + 0.5) * res) < 14.7 and abs(oy + (j + 0.5) * res) < 14.7
-                and all(world.distance_to(o, ox + (i + 0.5) * res, oy + (j + 0.5) * res) > 0 for o in SOLID)
-            ]
+            self.floor_cells = floor_cells(m)
 
     def on_odom(self, m):
         p, q = m.pose.pose.position, m.pose.pose.orientation
@@ -141,8 +159,9 @@ class Recorder:
         m = self.map
         w, res = m.info.width, m.info.resolution
         ox, oy = m.info.origin.position.x, m.info.origin.position.y
-        x0, y0 = int((-VIEW - ox) / res), int((-VIEW - oy) / res)
-        W = H = int(2 * VIEW / res)
+        vx, vy = WORLD["half_size"][0] + 0.5, WORLD["half_size"][1] + 0.5  # frame shows the world plus a margin
+        x0, y0 = int((-vx - ox) / res), int((-vy - oy) / res)
+        W, H = int(2 * vx / res), int(2 * vy / res)
         img = bytearray(W * H * 3)
         lo, hi = COLORS["halo_low"], COLORS["halo_high"]
 
@@ -195,7 +214,7 @@ class Recorder:
             write_png(os.path.join(self.out_dir, f"cam_{name}.png"), cam.width, cam.height, data)
         with open(os.path.join(self.out_dir, "frames.jsonl"), "a") as f:
             f.write(json.dumps({
-                "frame": self.frame, "t": round(elapsed, 1), "status": self.status,
+                "frame": self.frame, "world": WORLD["name"], "t": round(elapsed, 1), "status": self.status,
                 "coverage": round(self.coverage(), 4), "camera": self.camera is not None,
                 "closest_m": round(self.closest[0], 3),
             }) + "\n")
@@ -203,9 +222,12 @@ class Recorder:
 
 
 def main():
+    global WORLD, SOLID
     out_dir = sys.argv[1]
-    period = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
-    timeout = float(sys.argv[3]) if len(sys.argv) > 3 else 1200.0
+    WORLD = make_worlds.WORLDS[sys.argv[2]]
+    SOLID = make_worlds.solid_obstacles(WORLD)
+    period = float(sys.argv[3]) if len(sys.argv) > 3 else 1.0
+    timeout = float(sys.argv[4]) if len(sys.argv) > 4 else 1200.0
     os.makedirs(out_dir, exist_ok=True)
     open(os.path.join(out_dir, "frames.jsonl"), "w").close()
 
@@ -229,7 +251,7 @@ def main():
         if done_at is not None and now - done_at > 4:
             break
 
-    summary = {"status": rec.status, "seconds": round(time.time() - start, 1), "frames": rec.frame,
+    summary = {"world": WORLD["name"], "status": rec.status, "seconds": round(time.time() - start, 1), "frames": rec.frame,
                "coverage": round(rec.coverage(), 4), "closest_m": round(rec.closest[0], 3),
                "closest_at": rec.closest[1]}
     with open(os.path.join(out_dir, "summary.json"), "w") as f:
