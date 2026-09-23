@@ -6,11 +6,12 @@
 #include "map_memory_node.hpp"
 
 MapMemoryNode::MapMemoryNode() : Node("map_memory"), map_memory_(robot::MapMemoryCore(this->get_logger())) {
-  // 40m x 40m map at 0.1 m/cell, centered on the world origin (the sim arena is 30m x 30m)
+  // 60m x 40m map at 0.1 m/cell, centered on the world origin (big enough for
+  // every world: the arenas are 30m x 30m, and 55m x 20m for watonomous)
   double resolution = this->declare_parameter<double>("resolution", 0.1);
-  int width  = this->declare_parameter<int>("width", 400);
+  int width  = this->declare_parameter<int>("width", 600);
   int height = this->declare_parameter<int>("height", 400);
-  double origin_x = this->declare_parameter<double>("origin_x", -20.0);
+  double origin_x = this->declare_parameter<double>("origin_x", -30.0);
   double origin_y = this->declare_parameter<double>("origin_y", -20.0);
   std::string frame_id = this->declare_parameter<std::string>("frame_id", "sim_world");
   distance_threshold_ = this->declare_parameter<double>("distance_threshold", 1.5);

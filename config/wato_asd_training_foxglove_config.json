@@ -173,6 +173,168 @@
         },
         "frame:wall4_link": {
           "visible": false
+        },
+        "frame:letter0_W_0_0": {
+          "visible": false
+        },
+        "frame:letter0_W_0_1": {
+          "visible": false
+        },
+        "frame:letter0_W_0_2": {
+          "visible": false
+        },
+        "frame:letter0_W_0_3": {
+          "visible": false
+        },
+        "frame:letter1_A_0_0": {
+          "visible": false
+        },
+        "frame:letter1_A_0_1": {
+          "visible": false
+        },
+        "frame:letter1_A_1_0": {
+          "visible": false
+        },
+        "frame:letter2_T_0_0": {
+          "visible": false
+        },
+        "frame:letter2_T_1_0": {
+          "visible": false
+        },
+        "frame:letter3_O_0_0": {
+          "visible": false
+        },
+        "frame:letter3_O_0_1": {
+          "visible": false
+        },
+        "frame:letter3_O_0_2": {
+          "visible": false
+        },
+        "frame:letter3_O_0_3": {
+          "visible": false
+        },
+        "frame:letter3_O_0_4": {
+          "visible": false
+        },
+        "frame:letter3_O_0_5": {
+          "visible": false
+        },
+        "frame:letter3_O_0_6": {
+          "visible": false
+        },
+        "frame:letter3_O_0_7": {
+          "visible": false
+        },
+        "frame:letter4_N_0_0": {
+          "visible": false
+        },
+        "frame:letter4_N_0_1": {
+          "visible": false
+        },
+        "frame:letter4_N_0_2": {
+          "visible": false
+        },
+        "frame:letter5_O_0_0": {
+          "visible": false
+        },
+        "frame:letter5_O_0_1": {
+          "visible": false
+        },
+        "frame:letter5_O_0_2": {
+          "visible": false
+        },
+        "frame:letter5_O_0_3": {
+          "visible": false
+        },
+        "frame:letter5_O_0_4": {
+          "visible": false
+        },
+        "frame:letter5_O_0_5": {
+          "visible": false
+        },
+        "frame:letter5_O_0_6": {
+          "visible": false
+        },
+        "frame:letter5_O_0_7": {
+          "visible": false
+        },
+        "frame:letter6_M_0_0": {
+          "visible": false
+        },
+        "frame:letter6_M_0_1": {
+          "visible": false
+        },
+        "frame:letter6_M_0_2": {
+          "visible": false
+        },
+        "frame:letter6_M_0_3": {
+          "visible": false
+        },
+        "frame:letter7_O_0_0": {
+          "visible": false
+        },
+        "frame:letter7_O_0_1": {
+          "visible": false
+        },
+        "frame:letter7_O_0_2": {
+          "visible": false
+        },
+        "frame:letter7_O_0_3": {
+          "visible": false
+        },
+        "frame:letter7_O_0_4": {
+          "visible": false
+        },
+        "frame:letter7_O_0_5": {
+          "visible": false
+        },
+        "frame:letter7_O_0_6": {
+          "visible": false
+        },
+        "frame:letter7_O_0_7": {
+          "visible": false
+        },
+        "frame:letter8_U_0_0": {
+          "visible": false
+        },
+        "frame:letter8_U_0_1": {
+          "visible": false
+        },
+        "frame:letter8_U_0_2": {
+          "visible": false
+        },
+        "frame:letter8_U_0_3": {
+          "visible": false
+        },
+        "frame:letter8_U_0_4": {
+          "visible": false
+        },
+        "frame:letter9_S_0_0": {
+          "visible": false
+        },
+        "frame:letter9_S_0_1": {
+          "visible": false
+        },
+        "frame:letter9_S_0_2": {
+          "visible": false
+        },
+        "frame:letter9_S_0_3": {
+          "visible": false
+        },
+        "frame:letter9_S_0_4": {
+          "visible": false
+        },
+        "frame:letter9_S_0_5": {
+          "visible": false
+        },
+        "frame:letter9_S_0_6": {
+          "visible": false
+        },
+        "frame:letter9_S_0_7": {
+          "visible": false
+        },
+        "frame:letter9_S_0_8": {
+          "visible": false
         }
       },
       "topics": {
@@ -256,7 +418,7 @@
           "label": "Grid",
           "instanceId": "6387c3f4-066a-4fb9-a043-d9bbb06d4697",
           "layerId": "foxglove.Grid",
-          "divisions": 30,
+          "divisions": 60,
           "color": "#248eff",
           "position": [
             0,
@@ -269,7 +431,7 @@
             0
           ],
           "order": 2,
-          "size": 30,
+          "size": 60,
           "lineWidth": 1
         },
         "cadf14d8-072e-4af6-8fd0-60bf81d00399": {

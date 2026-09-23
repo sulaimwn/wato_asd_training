@@ -14,6 +14,7 @@ from launch_ros.actions import Node
 WORLDS = {
     'default': ('robot_env.sdf', 'env.urdf'),
     'warehouse': ('warehouse.sdf', 'warehouse_env.urdf'),
+    'watonomous': ('watonomous.sdf', 'watonomous_env.urdf'),
 }
 
 
