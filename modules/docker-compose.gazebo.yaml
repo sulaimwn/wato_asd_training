@@ -15,5 +15,7 @@ services:
       - "${GAZEBO_PORT:?}:9002"
     profiles: [deploy, develop]
     command: /bin/bash -c "ros2 launch gazebo sim.launch.py"
+    environment:
+      - WORLD=${WORLD:-default}  # set in watod-config.sh
     volumes:
       - ../src/gazebo/launch:/root/src/gazebo/launch

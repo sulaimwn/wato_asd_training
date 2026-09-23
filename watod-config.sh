@@ -17,6 +17,17 @@
 
 ACTIVE_MODULES="robot gazebo vis_tools"
 
+################################# SIMULATION WORLD #################################
+## Which Gazebo world to load (both are built into the image, so switching only
+## needs ./watod down && ./watod up, no rebuild).
+## Possible values:
+##   - warehouse   :   4 rooms off a main hall; the robot can't see it all from
+##                     the start, so it's the one to try autonomous exploration in
+##   - default     :   the assignment's original open arena
+## Override for one run with: WORLD=default ./watod up
+
+export WORLD="${WORLD:-warehouse}"
+
 ################################# MODE OF OPERATION #################################
 ## Possible modes of operation when running watod.
 ## Possible values:
