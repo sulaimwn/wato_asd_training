@@ -52,8 +52,12 @@ PlannerCore::Result PlannerCore::planPath(const nav_msgs::msg::OccupancyGrid& ma
   auto cellCost = [&](int x, int y) { return static_cast<int>(map.data[index(x, y)]); };
 
   // Unknown (-1) is free: we may plan through space we haven't seen yet.
-  // Blocked cells near the start/goal are let through (unless lethal) so the
-  // robot can still leave or reach a spot that sits in an inflated zone.
+  // Blocked cells are off-limits, except when the robot (or the goal) already
+  // sits in a blocked zone: then nearby cells that are no closer to an
+  // obstacle than it is are allowed, so it can get out (or in) without ever
+  // moving towards what it's next to.
+  const int start_cost = cellCost(start.x, start.y);
+  const int goal_cost = cellCost(goal.x, goal.y);
   const double escape_sq = escape_radius_ * escape_radius_;
   auto traversable = [&](int x, int y) {
     int cost = cellCost(x, y);
@@ -63,7 +67,9 @@ PlannerCore::Result PlannerCore::planPath(const nav_msgs::msg::OccupancyGrid& ma
     double wy = oy + (y + 0.5) * res;
     double ds = (wx - start_x) * (wx - start_x) + (wy - start_y) * (wy - start_y);
     double dg = (wx - goal_x) * (wx - goal_x) + (wy - goal_y) * (wy - goal_y);
-    return ds <= escape_sq || dg <= escape_sq;
+    if (start_cost >= obstacle_threshold_ && cost <= start_cost && ds <= escape_sq) return true;
+    if (goal_cost >= obstacle_threshold_ && cost <= goal_cost && dg <= escape_sq) return true;
+    return false;
   };
 
   if (!traversable(goal.x, goal.y)) return Result::GOAL_INVALID;

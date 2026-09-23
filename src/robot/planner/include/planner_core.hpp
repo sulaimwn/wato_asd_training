@@ -54,8 +54,9 @@ class PlannerCore {
 
     // obstacle_threshold: cells at or above this cost are blocked
     // cost_weight: how strongly to avoid (unblocked) high-cost cells
-    // escape_radius: blocked, non-lethal cells this close (m) to the start or
-    //   goal are allowed, so the robot can plan out of an inflated zone
+    // escape_radius: if the start (or goal) is itself blocked, blocked but
+    //   non-lethal cells this close (m) to it are allowed as long as they cost
+    //   no more than it does, so the robot can plan out of an inflated zone
     void setParams(int obstacle_threshold, double cost_weight, double escape_radius);
 
     // Plan on the map with A* from start to goal (world coordinates, map frame).
