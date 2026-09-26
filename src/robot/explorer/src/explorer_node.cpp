@@ -18,6 +18,7 @@ ExplorerNode::ExplorerNode() : Node("explorer"), explorer_(robot::ExplorerCore(t
   stuck_timeout_ = this->declare_parameter<double>("stuck_timeout", 20.0);
   path_fail_timeout_ = this->declare_parameter<double>("path_fail_timeout", 4.0);
   return_home_ = this->declare_parameter<bool>("return_home", true);
+  axle_offset_ = this->declare_parameter<double>("axle_offset", 1.3);
   bool start_enabled = this->declare_parameter<bool>("start_enabled", false);
   int update_period_ms = this->declare_parameter<int>("update_period_ms", 1000);
 
@@ -56,8 +57,12 @@ void ExplorerNode::mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg
 }
 
 void ExplorerNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-  robot_x_ = msg->pose.pose.position.x;
-  robot_y_ = msg->pose.pose.position.y;
+  // The robot's position is the middle of its wheel axle, like the planner's.
+  // Odometry reports the lidar, axle_offset_ ahead of it.
+  const auto& q = msg->pose.pose.orientation;
+  const double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+  robot_x_ = msg->pose.pose.position.x - axle_offset_ * std::cos(yaw);
+  robot_y_ = msg->pose.pose.position.y - axle_offset_ * std::sin(yaw);
   have_odom_ = true;
   if (state_ == State::EXPLORING && !have_home_) {
     home_x_ = robot_x_;

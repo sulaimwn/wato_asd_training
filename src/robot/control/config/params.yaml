@@ -1,11 +1,17 @@
 control_node:
   ros__parameters:
-    lookahead_distance: 1.0      # m ahead of the robot (lidar) to aim at on the path
-    linear_speed: 0.5            # m/s cruise speed
-    max_angular_speed: 1.0       # rad/s; sharper turns slow the robot down instead
+    lookahead_distance: 1.0      # m ahead of the middle of the wheel axle to aim at on the path
+    linear_speed: 1.0            # m/s cruise speed
+    max_angular_speed: 1.2       # rad/s; sharper turns slow the robot down instead
+    max_acceleration: 1.0        # m/s^2 when speeding up
+    max_deceleration: 2.0        # m/s^2 when slowing down
+    max_angular_acceleration: 3.0  # rad/s^2; sudden spins throw off where the map puts each scan
     goal_tolerance: 0.2          # m from the end of the path to stop (the planner also stops us at 0.5 m)
-    slowdown_distance: 1.5       # m from the end of the path to start slowing down
-    rotate_in_place_angle: 1.05  # rad (~60 deg), turn on the spot when the target is further off than this
+    slowdown_distance: 1.0       # m from the end of the path (or a corner to turn at) to start slowing down
+    rotate_in_place_angle: 0.8   # rad (~45 deg), turn on the spot when the target is further off than this
+    corner_angle: 0.35           # rad (~20 deg), a heading jump this big in the path is a corner to stop and turn at
+    turn_margin: 0.2             # m the body must stay clear of obstacles while turning on the spot (under the
+                                 #   planner's 0.3, which is measured more roughly, so it never refuses a turn the planner planned)
     axle_offset: 1.3             # m the odometry (lidar) point sits ahead of the wheel axle (robot_env.sdf)
     odom_timeout: 0.5            # s, stop if odometry is older than this
     control_period_ms: 100

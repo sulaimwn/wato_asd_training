@@ -47,7 +47,7 @@ LAUNCH_DIR = HERE.parent / "launch"
 
 LIDAR_AHEAD_OF_AXLE = 1.3  # m, from robot_env.sdf (chassis at +0.5, lidar at +0.8)
 LIDAR_HEIGHT = 0.9         # m above the floor; anything lower is invisible to it
-CLEARANCE = 0.8            # m the planner keeps the lidar from obstacles
+CLEARANCE = 0.8            # m from the lidar to obstacles, roughly the least the robot can drive through
 BODY_CLEARANCE = 1.2       # m the robot's body needs: half its 1.4 m width plus room to turn
 
 # Colors (r, g, b)
@@ -243,11 +243,13 @@ def check_reachable(world, res=0.1):
     """Two checks, on a grid of the world at `res` m per cell:
 
     1. Every probe is reachable from the spawn through cells at least
-       CLEARANCE from any obstacle (where the planner may put the robot).
-    2. The planner has no shortcuts the robot's body can't take: between any
-       two probes, the planner's shortest route is no more than 3 m shorter
-       than the shortest route through cells BODY_CLEARANCE from everything.
-       Otherwise the planner squeezes the robot through a gap it doesn't fit.
+       CLEARANCE from any obstacle.
+    2. No gap looks wide enough but isn't: between any two probes, the
+       shortest route through cells CLEARANCE from everything is no more than
+       3 m shorter than the shortest through cells BODY_CLEARANCE from
+       everything. The planner used to plan for the lidar alone and squeezed
+       the robot into gaps like that. It plans for the whole body now, but a
+       gap it can see through and never use still makes a confusing world.
     """
     solid = solid_obstacles(world)
     hx, hy = world["half_size"]
@@ -297,7 +299,7 @@ def check_reachable(world, res=0.1):
             p_len = planner[c] * res
             b_len = body[c] * res if c in body else float("inf")
             if p_len < b_len - 3.0:
-                raise SystemExit(f"{world['name']}: from {name_a} to {name_b} the planner can squeeze through a "
+                raise SystemExit(f"{world['name']}: from {name_a} to {name_b} there's a shortcut through a "
                                  f"gap too narrow for the robot's body ({p_len:.0f} m instead of {b_len:.0f} m)")
     print(f"  ok   no shortcuts too narrow for the robot's body ({len(probes)} probes, pairwise)")
 

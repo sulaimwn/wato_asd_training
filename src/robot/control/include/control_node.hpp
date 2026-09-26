@@ -3,6 +3,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/path.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 
@@ -17,12 +18,14 @@ class ControlNode : public rclcpp::Node {
 
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+    rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_sub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
     rclcpp::TimerBase::SharedPtr control_timer_;
 
     nav_msgs::msg::Path::SharedPtr current_path_;
     nav_msgs::msg::Odometry::SharedPtr robot_odom_;
     rclcpp::Time last_odom_time_;  // when the last odometry arrived (node clock)
+    rclcpp::Time last_command_time_;  // when controlLoop last computed a command
 
     double odom_timeout_;
     bool driving_ = false;  // true while we are the ones commanding /cmd_vel

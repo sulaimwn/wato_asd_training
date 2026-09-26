@@ -71,6 +71,7 @@ class ExplorerNode : public rclcpp::Node {
     double stuck_timeout_;
     double path_fail_timeout_;
     bool return_home_;
+    double axle_offset_;
 
     void mapCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);

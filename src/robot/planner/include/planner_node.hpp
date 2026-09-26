@@ -33,21 +33,33 @@ class PlannerNode : public rclcpp::Node {
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
-    nav_msgs::msg::OccupancyGrid current_map_;
+    std::string map_frame_ = "sim_world";
     bool have_map_ = false;
 
     geometry_msgs::msg::PointStamped goal_;
+    double target_x_ = 0.0;  // where the latest path ends: within arrive_radius of the
+    double target_y_ = 0.0;  //   goal, or the nearest spot to it the robot can reach
     rclcpp::Time goal_start_time_;
 
+    // The middle of the wheel axle, the point the robot turns about.
+    // Odometry reports the lidar, axle_offset_ ahead of it.
     double robot_x_ = 0.0;
     double robot_y_ = 0.0;
+    double robot_yaw_ = 0.0;
     bool have_odom_ = false;
 
     double goal_tolerance_;
     double goal_timeout_;
+    double axle_offset_;
+    double arrive_radius_;
+    double body_margin_;
+    double switch_distance_;
+
+    nav_msgs::msg::Path current_path_;  // the route we're following, as last published
 
     bool goalReached() const;
     void planPath();
+    bool keepCurrentPath(const nav_msgs::msg::Path& fresh);
     void publishEmptyPath();  // tells the controller to stop
 };
 

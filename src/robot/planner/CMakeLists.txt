@@ -55,4 +55,15 @@ install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME})
 
+# Unit tests for the planning. Installed next to the node, so they can be run
+# inside the robot image: ros2 run planner planner_test
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(planner_test test/planner_core_test.cpp)
+  target_link_libraries(planner_test planner_lib)
+  install(TARGETS
+    planner_test
+    DESTINATION lib/${PROJECT_NAME})
+endif()
+
 ament_package()

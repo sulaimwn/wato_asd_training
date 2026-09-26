@@ -1,6 +1,7 @@
 explorer_node:
   ros__parameters:
-    free_threshold: 50              # map cost below which a known cell is free (match the planner's obstacle_threshold)
+    free_threshold: 50              # map cost below which a known cell counts as open floor when looking for frontiers the
+                                    # robot can get to (50 = 0.8 m from a wall; the planner then finds the actual route)
     frontier_max_cost: 0            # frontier cells must be seen-empty floor outside every obstacle's halo; higher values
                                     # let the costmap's inflation into never-seen space (behind walls) pose as frontiers
     min_frontier_size: 8            # cells (0.8 m at 0.1 m/cell); smaller frontier patches are ignored
@@ -11,5 +12,6 @@ explorer_node:
     stuck_timeout: 20.0             # s without getting 0.3 m closer (along the planned route) before giving up on a goal
     path_fail_timeout: 4.0          # s without a path from the planner before giving up on a goal
     return_home: true               # drive back to where exploration started once the map is complete
+    axle_offset: 1.3                # m the odometry (lidar) point sits ahead of the wheel axle, the robot's position
     start_enabled: false            # true = start exploring as soon as the node starts
     update_period_ms: 1000

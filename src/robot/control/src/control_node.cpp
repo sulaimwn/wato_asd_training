@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <memory>
@@ -12,6 +13,12 @@ ControlNode::ControlNode(): Node("control"), control_(robot::ControlCore(this->g
   params.goal_tolerance = this->declare_parameter<double>("goal_tolerance", params.goal_tolerance);
   params.slowdown_distance = this->declare_parameter<double>("slowdown_distance", params.slowdown_distance);
   params.rotate_in_place_angle = this->declare_parameter<double>("rotate_in_place_angle", params.rotate_in_place_angle);
+  params.max_acceleration = this->declare_parameter<double>("max_acceleration", params.max_acceleration);
+  params.max_deceleration = this->declare_parameter<double>("max_deceleration", params.max_deceleration);
+  params.max_angular_acceleration =
+      this->declare_parameter<double>("max_angular_acceleration", params.max_angular_acceleration);
+  params.corner_angle = this->declare_parameter<double>("corner_angle", params.corner_angle);
+  params.turn_margin = this->declare_parameter<double>("turn_margin", params.turn_margin);
   params.axle_offset = this->declare_parameter<double>("axle_offset", params.axle_offset);
   control_.setParams(params);
 
@@ -25,6 +32,12 @@ ControlNode::ControlNode(): Node("control"), control_(robot::ControlCore(this->g
         robot_odom_ = msg;
         last_odom_time_ = this->now();
       });
+
+  // The map, to check there's room before turning on the spot. transient_local
+  // to match map_memory, so we get the last map even if we start after it.
+  map_sub_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
+      "/map", rclcpp::QoS(1).transient_local(),
+      [this](const nav_msgs::msg::OccupancyGrid::SharedPtr msg) { control_.setMap(*msg); });
 
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
 
@@ -50,7 +63,11 @@ void ControlNode::controlLoop() {
   const auto& q = pose.orientation;
   double yaw = std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
 
-  auto cmd = control_.computeCommand(*current_path_, pose.position.x, pose.position.y, yaw);
+  const rclcpp::Time now = this->now();
+  const double dt = last_command_time_.nanoseconds() == 0 ? 0.0
+                    : std::clamp((now - last_command_time_).seconds(), 0.0, 0.2);
+  last_command_time_ = now;
+  auto cmd = control_.computeCommand(*current_path_, pose.position.x, pose.position.y, yaw, dt);
   if (!cmd) {
     stop();  // reached the end of the path
     return;
