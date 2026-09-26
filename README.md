@@ -4,18 +4,18 @@ A little robot in a simulator that drives to wherever you click without crashing
 
 ![The robot exploring on its own until the map spells WATONOMOUS](docs/demo_watonomous.gif)
 
-*One full run, sped up 12×. The robot starts knowing nothing. From its camera (bottom left) these are just walls, but from above they spell a word, and you watch it show up in the map as the lidar finds each wall. When there's nothing left to explore, it drives back to where it started.*
+*One full run, sped up 12×. The robot starts knowing nothing. From its camera (bottom left) these are just walls, but from above they spell a word, and you watch it show up in the map as the lidar finds each wall. When there's nothing left to explore, it drives back to where it started. (Recorded on my previous version, which drove at half the speed.)*
 
 ## What it does
 
 The assignment is four ROS 2 nodes that pass data down a line, lidar in, wheel speeds out:
 
-- **costmap**: takes each laser scan and turns it into a grid around the robot: what's empty, what's a wall, what's too close to a wall.
+- **costmap**: turns each laser scan into a grid around the robot: what's empty, what's a wall, and what it hasn't seen yet.
 - **map_memory**: glues those grids together into one big map as the robot drives around.
-- **planner**: finds a path to the goal on that map using A\*.
-- **control**: follows the path with pure pursuit (always aiming at a spot a bit further along the path).
+- **planner**: finds a path to the goal on that map with A\*.
+- **control**: follows the path with pure pursuit (always aiming at a spot a bit further along it).
 
-On top of that I added a bunch of stuff that wasn't asked for, mostly for fun. That's all in [Extra stuff I built](#extra-stuff-i-built-outside-the-assignment) below.
+Getting a path on the screen was the easy part. Most of my time went into making the robot actually follow it without clipping anything, since it's 2 m long, 1.4 m wide, and turns about a point near its back. The bugs I hit on the way are [further down](#bugs-i-hit-and-how-i-fixed-them), along with [how it does now](#how-well-it-works-now), measured. I also built some stuff that wasn't asked for, mostly for fun: [exploration and two new worlds](#extra-stuff-i-built).
 
 ## How the pieces talk
 
@@ -25,7 +25,7 @@ flowchart LR
     sim -- "/tf" --> odom[odometry_spoof]
     odom -- "/odom/filtered<br/>(where the robot is)" --> map_memory & planner & control & explorer
     costmap -- "/costmap<br/>(local grid)" --> map_memory
-    map_memory -- "/map<br/>(whole map)" --> planner & explorer
+    map_memory -- "/map<br/>(whole map)" --> planner & control & explorer
     explorer -- "/goal_point" --> planner
     foxglove["Foxglove<br/>(you)"] -- "/goal_point (click)<br/>/explore/enable (buttons)" --> planner & explorer
     planner -- "/path" --> control
@@ -36,10 +36,10 @@ Each box is its own program (a ROS node) and each arrow is a topic, basically a 
 
 | Node | In short |
 |---|---|
-| `costmap` | A 30 m × 30 m grid around the robot, 10 cm cells. Every wall gets a 1.6 m "stay away" zone around it. |
-| `map_memory` | A 60 m × 40 m map of the whole world. Updates every 1.5 m of driving, or every 2 s if the robot's sitting still. |
-| `planner` | A\* that won't go within 0.8 m of a wall and prefers the middle of hallways. Replans twice a second. |
-| `control` | Aims at a point 1 m ahead on the path. Turns on the spot if that point is way off to the side. |
+| `costmap` | A 30 m × 30 m grid around the robot, 10 cm cells. Walls go where the lidar hits, with a cost fading out 1.6 m around them. Cells no beam has reached stay "unknown". |
+| `map_memory` | A 60 m × 40 m map of the whole world. Each scan is placed where the robot was at the moment it was taken. |
+| `planner` | A\* for the robot's whole body, not just a point. Every part of it stays 0.3 m from anything, corners get rounded into arcs, and it only plans to turn on the spot where there's room. Replans twice a second. |
+| `control` | Pure pursuit from the middle of the wheel axle, up to 1 m/s. Stops and turns on the spot at sharp corners, after checking the body won't hit anything on the way round. |
 | `explorer` | My addition. Keeps sending the planner to the edge of what's been explored until there's nothing left. |
 
 ## Running it
@@ -84,81 +84,126 @@ They're all baked into the image, so switching is just a restart:
 ### Running the tests
 
 ```bash
+# Unit tests for the planner and the explorer
+docker run --rm ghcr.io/watonomous/wato_asd_training/robot:main ros2 run planner planner_test
 docker run --rm ghcr.io/watonomous/wato_asd_training/robot:main ros2 run explorer explorer_test
+
+# Drive the running world's goal course and measure how it went (start it fresh first)
+./watod down && ./watod up -d
+tools/course/run_course.sh            # or: tools/course/run_course.sh explore
 ```
 
-## Extra stuff I built (outside the assignment)
+## Bugs I hit and how I fixed them
 
-Honestly, most of this was for fun. Once the robot could drive to a point, the original arena got boring fast: it can see almost the whole thing from where it spawns, so there's nothing to figure out. I wanted to see it deal with a place it *couldn't* see, and I wanted a demo that was actually cool to watch. Here's what I added, why, and how each one works.
+Roughly in the order I ran into them.
 
-### 1. Autonomous exploration
+### Getting it to drive at all
 
-**Why:** The assignment robot only goes where you tell it. I wanted it to go find stuff on its own, like a robot vacuum mapping a new house.
+**It drove straight into the big cylinder.** The sim's first few lidar scans come back empty. One of those blank scans became the first map update, and the next update wasn't due until the robot had driven 1.5 m, so as far as the planner knew, the arena was empty. Fix: skip scans with nothing in them. They can't tell the map anything anyway.
 
-**How it works:** The trick is a *frontier*: the border between floor the robot has already seen and space it hasn't. Drive to a frontier, the lidar sees past it, the unknown shrinks, new frontiers show up further out. Repeat until there are none you can reach, then drive home. Once a second the explorer:
+**It circled the goal forever.** The robot's position comes from the lidar, which sits 1.3 m ahead of the wheel axle. The planner planned for the lidar, but I was steering the axle, so the lidar ended up circling the goal about 0.6 m away, never quite close enough to count. My fix back then was to steer the lidar instead. That came back to bite me (see "the back cut corners" below).
+
+**The side of the robot scraped the big cylinder.** The planner kept the lidar 0.5 m from walls, but the wheels stick out 0.7 m either side of it, so going around the cylinder the body got within 0.06 m. I made the planner's "stay away" zone 0.8 m and the closest call went up to 0.51 m. It worked, but it was a patch over the real problem: the planner thought the robot was a dot.
+
+### Getting the map right
+
+**It knew what was behind walls it had never seen.** After one scan, every cell in the 30 m window counted as empty. Fine for driving, but it leaves nothing to explore. Now a cell only counts as empty once a lidar beam has actually gone through it. It checks the beams on both sides of the cell, so a wall seen at a shallow angle doesn't end up with gaps in it.
+
+**The map froze when the robot stopped.** The map only updated after 1.5 m of driving, so when the robot stopped at a frontier or turned on the spot, whatever it was looking at never made it into the map. Now it also updates every 2 s.
+
+**Walls that weren't there.** Once I started measuring things properly (see [below](#how-well-it-works-now)), the map turned out to have walls in empty space: 39 to 76 cells of them per run in the original arena. The new planner (further down) is pickier about room, and one of those fake walls made it give up on a goal 1.3 m off the big cylinder. The robot wasn't tipping (0.4° at most), so the lidar wasn't seeing the floor. It was timing. Odometry only arrives 10 times a second, and each scan was placed on the map using the newest reading, which was usually a bit *older* than the scan. Turning at 1 rad/s, being 0.1 s off swings a wall 15 m away by more than a metre. Now map_memory holds on to the last second of scans, and only places one once it has an odometry reading from before *and* after it, so it can work out exactly where the robot was in between. That in-between guess assumes the turn rate barely changes in a tenth of a second, so I also made the controller ramp its speed and turning up and down instead of jumping. Fake walls since then: 0, in every run.
+
+### Getting around things without touching them
+
+**The back cut corners.** This was the big known problem in my last version. Since the controller steered the lidar at the front, the rest of the robot followed like a trailer, and on tight turns the back swung into things. Exploring the warehouse, it got as close as 0.11 m, when the back swung around the end of the storage room wall. The planner didn't know any better either, because it planned for a dot with a 0.8 m bubble around it. Fixing it meant redoing both:
+
+- **Everything works from the middle of the wheel axle**, the point the robot actually turns about. That's what the planner plans for and what the controller steers. The path now ends where the axle should stop, so there's nothing to circle, which is the proper fix for the circling bug above.
+- **The planner checks the whole body.** It covers the chassis and wheels with 12 circles. For each new map it works out how far every cell is from the nearest wall, so "does the robot fit here, facing this way?" is just 12 lookups. A\* only takes a step if the body fits at both ends of it, facing along it.
+- **Corners get rounded into arcs.** Pure pursuit aims at a point ahead, so on a path of straight lines it cuts every corner. Now each corner is rounded into the biggest arc (2.5, 1.8, 1.2 or 0.8 m radius) the body fits along, checked every 10 cm. If none fits, the corner stays sharp, and the controller stops there and turns on the spot.
+- **The controller looks before it turns.** Turning on the spot swings the front corners round a 1.6 m circle. It checks that against the map first: if the short way round is blocked it goes the long way, and if both are blocked it backs up a bit.
+
+**It hooked around the goal.** Right next to something, the body only fits facing some ways, so the planner would loop right around the goal to arrive facing one of those, passing 0.12 m from the big cylinder on the way. Now anywhere within 0.25 m of the goal counts as there. Also, the first step of a path has to be one the robot can actually turn to where it's standing.
+
+**It rocked back and forth instead of turning.** Where the short way round only just had room, the controller picked which way to turn fresh every tenth of a second, and kept flipping between the two. Now once it starts turning one way, it keeps going that way.
+
+**It couldn't pick between two routes.** Around something with two ways round that cost about the same, each replan (twice a second, from a slightly different spot) could pick the other one, so the robot kept turning back and forth. Now it sticks with the route it's on unless a new one is at least 1 m shorter, or the old one gets blocked.
+
+**It got stuck at the end of a wall for two and a half minutes.** Pulling out of the warehouse's loading dock, the planner planned a sharp turn right next to the end of a wall, with a crate on the other side. The robot drove up to it, found no room to turn either way, backed up, and the next plan sent it straight back. The planner had never checked that the robot could actually turn there. Three changes:
+
+- A\* only changes direction sharply where the body can turn on the spot, checked every 5°, both ways round.
+- When the path gets straightened out, a shortcut only counts if the robot can get round the corner it makes.
+- The straightening now looks past the first blocked line. Whether a line is clear depends on which way the body faces along it, so right after a bend the steep lines to the nearest points clip the corner, while the shallower ones further on are fine. It used to stop at the first blocked one, which is how that zig-zag got there in the first place.
+
+There are unit tests for it now. One is set at the bottom of the A and the T in the watonomous world (yes, those two again), with the goal just below the gap between them: with the room check switched off, the planner turns on the spot under the gap with 0.08 m to spare, and the test fails. Another sends the robot on 40 random trips around a small warehouse and checks every route, including every turn on the spot, keeps the real body at least 0.2 m clear.
+
+**It was slow, and long trips timed out.** It drove at 0.5 m/s, and on the far end of the watonomous word it gave up, because 2 minutes wasn't enough. It drives at 1 m/s now (speeding up and slowing down gradually) and gives up after 5 minutes.
+
+### Exploring
+
+**It skipped a room because of a fake frontier.** The costmap puts a cost around walls even on the side it hasn't seen. That left thin bands of fake "seen" floor wrapped around the outside of the building, which joined up into one giant fake frontier, and the robot skipped a room because of it. Now only floor the lidar actually saw counts. There's a unit test for it.
+
+**It gave up on anything behind the word.** To reach the far side of the lettering, the robot has to drive *away* from its goal for a while to get around the word. Measured in a straight line that looked like no progress, so it kept giving up. Now progress is measured along the planned route.
+
+**It crashed through a gap between two letters.** My first version of the lettering had a normal A with slanted legs. That left a wedge-shaped gap next to the T that was wide enough for the old planner (which only kept the lidar 0.8 m from walls) but not for the robot. It took the shortcut and hit the T. Every letter has straight outer sides now, and the world generator refuses any world with a gap like that.
+
+## How well it works now
+
+`tools/course/run_course.sh` sends the robot round a fixed course of awkward goals in each world (around the ends of things, through gaps, turning back on itself), or has it explore the whole world, and measures how it went. None of it is measured from the robot's own map: the obstacles come straight from the world file and the robot's shape from its model, so **closest call** is the real gap between the robot's body and the nearest real thing. **Fake walls** counts wall cells on the robot's map more than 0.2 m from anything real. [More on how it works.](tools/course/README.md)
+
+"Before" is my previous version, the one with the trailer problem. Same sim, same courses, one run each.
+
+| World | Test | Before | After |
+|---|---|---|---|
+| Original arena | 7 goals | 7/7 in 3 min 41 s. Closest call 0.52 m, 39 fake wall cells | 7/7 in 2 min 4 s. Closest call 0.55 m, 0 fake wall cells |
+| | Explore | Done in 3 min 39 s, 100% mapped. Closest call 0.30 m, 6 fake wall cells | Done in 1 min 56 s, 100% mapped. Closest call 0.81 m, 0 fake wall cells |
+| Warehouse | 5 goals | 5/5 in 3 min 27 s. Closest call 0.28 m, 15 fake wall cells | 5/5 in 2 min 4 s. Closest call 0.34 m, 0 fake wall cells |
+| | Explore | Done in 2 min 52 s, 99.5% mapped. Closest call 0.16 m, 2 fake wall cells | Done in 1 min 40 s, 99.5% mapped. Closest call 0.53 m, 0 fake wall cells |
+| Watonomous | 5 goals | 4/5 (one timed out) in 6 min 52 s. Closest call 0.37 m, 82 fake wall cells | 5/5 in 3 min 38 s. Closest call 0.73 m, 0 fake wall cells |
+| | Explore | Done in 4 min 44 s, 99.7% mapped. Closest call 0.28 m, 5 fake wall cells | Done in 2 min 35 s, 99.6% mapped. Closest call 0.60 m, 0 fake wall cells |
+
+Every run takes 40 to 50% less time, but that's mostly just the robot driving twice as fast. The part I actually care about is the closest calls. Every one went up, and the tightest is now 0.34 m (going past a crate in the warehouse), where before it was 0.16 m (a stack of pallets). There are no fake walls in any run, and in none of them did the robot have to back out of anywhere. Runs do vary a bit, though: on the old code, exploring the original arena took 2 min 58 s one time and 3 min 39 s the next.
+
+Unit tests: planner 8/8, explorer 8/8.
+
+## Extra stuff I built
+
+Once the robot could drive to a point, the original arena got boring fast: it can see almost the whole thing from where it spawns, so there's nothing to figure out. I wanted to see it deal with a place it *couldn't* see, and I wanted a demo that was actually cool to watch.
+
+### Autonomous exploration
+
+The assignment robot only goes where you tell it. I wanted it to go find stuff on its own, like a robot vacuum mapping a new house.
+
+The trick is a *frontier*: the border between floor the robot has already seen and space it hasn't. Drive to a frontier, the lidar sees past it, the unknown shrinks, new frontiers show up further out. Repeat until there are none you can reach, then drive home. Once a second the explorer:
 
 1. Flood-fills out from the robot (breadth-first search) to find every spot it can actually get to, so it doesn't chase frontiers behind walls.
 2. Marks every reachable, seen-as-empty cell that touches unknown space.
 3. Groups touching cells into patches, ignores tiny ones, and sends the closest patch to the planner as a goal.
 4. Gives up on a goal if it gets there, if the lidar already saw past it, if the planner can't find a path, or if the robot stops making progress for 20 s.
 
-**Built with:** a new C++ ROS 2 node (`src/robot/explorer`, using `rclcpp`). The frontier search lives in its own library so it can be unit tested with GoogleTest: 8 tests, with their maps drawn as text right in the code. It talks to the rest of the system over normal ROS topics: it publishes goals on `/goal_point` just like a Foxglove click, listens for on/off on `/explore/enable` (the two Foxglove buttons publish a `std_msgs/Bool`), reports its state on `/explore/status`, and draws the frontiers in Foxglove with a `visualization_msgs/MarkerArray`.
+It's its own C++ node (`src/robot/explorer`). The frontier search lives in a library so it can be unit tested with GoogleTest, with the test maps drawn as text right in the code. It talks to everything else over normal topics: it publishes goals on `/goal_point` just like a Foxglove click, listens for on/off on `/explore/enable` (the two Foxglove buttons), reports its state on `/explore/status`, and draws the frontiers in Foxglove as markers.
 
-**Two bugs worth mentioning:**
-- The costmap puts a safety zone around walls even on the side it hasn't seen. That left thin bands of fake "seen" floor wrapped around the outside of the building, which all joined up into one giant fake frontier, and the robot skipped a room because of it. Fix: only floor the lidar *actually* saw counts. There's a unit test for it now.
-- To reach the far side of the lettering, the robot has to drive *away* from its goal for a while to get around the word. Measured in a straight line that looked like no progress, so it kept giving up. Now progress is measured along the planned route.
+### Two new worlds, one of them spelling WATONOMOUS
 
-### 2. Two new worlds, one of them spelling WATONOMOUS
-
-**Why:** Exploration needs somewhere worth exploring. And a word that only shows up in the robot's map felt like the best way to show the map is really built from what the lidar sees.
+Exploring needs somewhere worth exploring. And a word that only shows up in the robot's map felt like the best way to show the map is really built from what the lidar sees.
 
 - **`watonomous`**: a 55 m × 20 m hall with walls down the middle spelling WATONOMOUS from above.
-- **`warehouse`**: four rooms (storage racks, a pallet room, an office, a loading dock with a truck) off a main hall.
+- **`warehouse`**: four rooms (storage racks, a pallet room, an office, a loading dock with a truck) off a main hall. ([GIF](docs/demo_warehouse.gif))
 
-**How it works:** Every obstacle in both worlds is listed once, in a Python script (`src/gazebo/tools/make_worlds.py`). The letters come from a tiny block font I defined as lines on a grid, and each line becomes a wall. From that one list the script writes two files:
+Every obstacle in both worlds is listed once, in a Python script (`src/gazebo/tools/make_worlds.py`). The letters come from a tiny block font I defined as lines on a grid, and each line becomes a wall. From that one list the script writes the Gazebo world (SDF) that actually gets simulated, and a matching URDF that Foxglove draws, so the two can't disagree. The robot and its sensors are copied straight from the assignment's world, so nothing about the robot changes. Before writing anything, the script checks every room can be reached, and that there's no gap that looks passable but that the robot's body won't fit through (see the A and the T above). Every obstacle is also at least 1.3 m tall, because the lidar scans a flat slice 0.9 m off the ground and can't see anything shorter.
 
-- a **Gazebo world** (SDF, which is XML) that Ignition Gazebo actually simulates, with physics, lidar and camera. The robot and sensors are copied straight from the assignment's original world so nothing about the robot changes.
-- a matching **URDF** of the same shapes. `robot_state_publisher` publishes it on `/env_description` so Foxglove draws whichever world is running.
+### Measuring it
 
-The world is picked with `WORLD` in `watod-config.sh`, which Docker Compose passes into the Gazebo container as an environment variable, and the launch file (`sim.launch.py`) loads the right files.
+- `tools/course/`: the course runs above.
+- `tools/demo/`: records the GIFs. It saves a picture of the map, the camera image and some stats every second, then stitches them into a GIF with ffmpeg, all inside Docker.
+- Unit tests in `src/robot/planner/test` and `src/robot/explorer/test`. The planner tests check every route against the exact shapes of the obstacles rather than the planner's own map, so they'd catch the planner fooling itself too.
 
-Before writing anything, the script checks the world is actually drivable. It lays a 10 cm grid over it and runs a breadth-first search to make sure every room can be reached. It also checks there's no gap the planner would try to squeeze through that the robot's body won't fit through.
+## Still not perfect
 
-**Why that last check exists:** my first version of the lettering had a normal A with slanted legs. That left a wedge-shaped gap next to the T that was wide enough for the planner (which only keeps the lidar 0.8 m from walls) but not for the 1.4 m-wide robot. It took the shortcut and hit the T. Now every letter has straight outer sides and the script refuses any world with a gap like that. Also, every obstacle is at least 1.3 m tall, because the lidar scans a flat slice 0.9 m off the ground and can't see anything shorter.
-
-### 3. A few upgrades to the assignment nodes
-
-These are in the required nodes, but go past what the assignment asked for:
-
-- **The costmap knows what it hasn't seen.** A cell only counts as empty if a laser beam actually passed through it; everything else stays "unknown". Without this, one scan makes the robot think it's seen the whole arena and there's nothing to explore. It also checks the beams on *both* sides of a cell, so walls seen at a shallow angle don't get holes in them.
-- **The map updates while sitting still.** The assignment says to update after driving 1.5 m. But when the robot stops and turns on the spot, it sees new stuff without moving, so the map also updates every 2 s.
-- **Scans get matched to where the robot *was*.** Each scan gets pasted into the map using the robot's position at the exact moment the scan was taken, not whenever it gets processed. Otherwise walls smear when the robot turns.
-- **The controller steers the lidar, not the axle.** The robot's position comes from the lidar, which sits 1.3 m ahead of the wheels, so the controller aims that point straight at the path. It lands exactly on the goal, but the back of the robot trails like a trailer (see "not perfect yet" below).
-- **The planner stays out of tight spots.** Steps next to walls cost more, so paths stick to the middle of hallways. It won't cut corners diagonally, it can back out if the robot ends up too close to a wall, and it straightens out A\*'s zig-zag steps into straight lines.
-
-### 4. Recording the demos
-
-**Why:** I wanted GIFs for this README, and real numbers instead of "it seems to work".
-
-**How it works:** `tools/demo/record_run.py` is a small Python ROS node (`rclpy`) that runs inside the robot container. Once a second it saves a top-down picture of the map, the camera image, and some stats. It also imports the world list from `make_worlds.py`, so it knows where the walls *really* are, and uses that to measure how close the robot's body ever gets to hitting something. `compose_frames.py` lays each frame out with Pillow, and `make_demo.sh` runs everything and stitches the frames into a GIF and MP4 with ffmpeg, all inside Docker so you don't need to install anything.
-
-## Results
-
-All measured in the simulator. "Closest call" is the smallest gap between the robot's **body** (not just the lidar) and any obstacle during the run.
-
-| Test | How it went |
-|---|---|
-| `watonomous`, exploring from an empty map (the GIF above) | Done and back home in **4 min 54 s**, **99.7%** of the hall mapped, every letter drawn from lidar alone. Closest call **0.32 m**. |
-| `warehouse`, exploring from an empty map ([GIF](docs/demo_warehouse.gif)) | Done and back home in **2 min 51 s**, **99.4%** of the floor mapped. The only bit it missed is behind the truck, which nothing can see into. Closest call **0.21 m** (0.12 m in an earlier run). |
-| Original arena, three clicked goals across it | All three reached, 31–45 s each. |
-| Exploring off, on again, then clicking a goal mid-explore | Stops and stays put when off, picks back up when on, hands over to the click (6/6 checks). |
-| Frontier search unit tests | 8/8 passing. |
-
-## Not perfect yet
-
-- **Corner cutting.** Since the controller steers the lidar at the front, the rest of the body follows like a trailer and cuts corners a bit on tight turns. All the closest calls in the warehouse came from that, like the back swinging around the end of the storage-room wall. A planner that knows the robot's full shape would fix it.
+- **Pure pursuit still shaves arcs a little.** It aims 1 m ahead, so it starts turning a moment before each arc does. The planner's 0.3 m margin covers that: the tightest call across all six runs above was 0.34 m.
+- **It only drives forwards.** Backing up is just the controller's last resort, in a straight line, when it has no room to turn. A planner that could plan reversing, like parallel parking, would get out of tight spots faster.
+- **The planner searches over position, not position and heading.** It checks the heading as it goes, which covers nearly everything, but in a really tight spot it could miss a way through that a smarter search would find.
 - **Short stuff is invisible.** The lidar only sees a flat slice 0.9 m off the ground. That's why every obstacle in my worlds is at least 1.3 m tall.
-- **Optimistic planning.** The planner treats unknown space as free and just replans once it sees what's really there. That's on purpose (otherwise it could never head into the unknown), but it means paths can change a lot early on.
+- **Optimistic planning.** The planner treats unknown space as free and replans once it sees what's really there. That's on purpose (otherwise it could never head into the unknown), but it means paths can change a lot early on.
 
 ## Where things are
 
@@ -166,7 +211,7 @@ All measured in the simulator. "Closest call" is the smallest gap between the ro
 src/robot/
   costmap/        lidar scan -> local grid
   map_memory/     local grids -> whole map
-  planner/        A* path planning
+  planner/        A* path planning for the whole body (+ unit tests in test/)
   control/        pure pursuit path following
   explorer/       autonomous exploration (+ unit tests in test/)
   bringup_robot/  launches all of the above
@@ -175,6 +220,7 @@ src/gazebo/
   launch/         sim launch file, the worlds (.sdf) and what Foxglove draws (.urdf)
   tools/          make_worlds.py, builds the warehouse and watonomous worlds
 config/           Foxglove layout
+tools/course/     drives a fixed course in each world and measures it
 tools/demo/       scripts that record the demo GIFs
 docker/, modules/, watod   Docker setup and the watod wrapper (provided)
 ```

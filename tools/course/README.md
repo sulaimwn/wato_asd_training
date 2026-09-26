@@ -33,9 +33,9 @@ A line per goal as it goes, then a summary, all saved to
 `tools/course/results/<world>_<mode>.json` (git ignores that folder):
 
 ```
-ok   office (through its side door)                     23.0 s  closest 0.31 m (crate_1 at (5.5, -7.54))
-ok   back to the hall                                   12.9 s  closest 0.97 m (wall_hall_s1 at (-9.41, -4.34))
-SUMMARY {"world": "warehouse", "mode": "course", "reached": 5, "goals": 5, "seconds": 120.6, ...}
+ok   office (through its side door)                     23.5 s  closest 0.34 m (crate_1 at (5.49, -7.45))
+ok   back to the hall                                   12.9 s  closest 1.02 m (wall_hall_s1 at (-9.4, -4.23))
+SUMMARY {"world": "warehouse", "mode": "course", "reached": 5, "goals": 5, "seconds": 123.6, ...}
 ```
 
 | Field | Meaning |
