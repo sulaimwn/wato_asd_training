@@ -44,17 +44,11 @@ void MapMemoryNode::costmapCallback(const nav_msgs::msg::OccupancyGrid::SharedPt
   bool has_obstacle = std::any_of(msg->data.begin(), msg->data.end(), [](int8_t v) { return v > 0; });
   if (!has_obstacle) return;
 
-  // Pair the costmap with where the robot was when the scan was taken, not
-  // where it is when the timer fires; otherwise obstacles smear while turning
-  Pose2D pose;
-  if (!poseAt(rclcpp::Time(msg->header.stamp).seconds(), pose)) {
-    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                         "No odometry close to the costmap timestamp, skipping costmap");
-    return;
-  }
-  latest_costmap_ = *msg;
-  costmap_pose_ = pose;
-  have_costmap_ = true;
+  // Keep the last second or so of costmaps. Each is placed on the map using
+  // the robot's pose at the moment its scan was taken, which has to wait for
+  // the odometry reading after it (see updateMap).
+  recent_costmaps_.push_back(*msg);
+  while (recent_costmaps_.size() > 10) recent_costmaps_.pop_front();
 }
 
 void MapMemoryNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -75,21 +69,10 @@ void MapMemoryNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
   while (odom_history_.size() > 50) odom_history_.pop_front();  // ~5 s at 10 Hz
 }
 
-// Robot pose at time t, interpolated between the two odometry messages around it
+// Robot pose at time t, interpolated between the two odometry messages
+// around it. False if there isn't one on each side of t yet.
 bool MapMemoryNode::poseAt(double t, Pose2D& pose) const {
-  const double tolerance = 0.2;  // s, how far outside the history we accept
-  if (odom_history_.empty()) return false;
-
-  const Pose2D& oldest = odom_history_.front();
-  const Pose2D& newest = odom_history_.back();
-  if (t <= oldest.t) {
-    pose = oldest;
-    return oldest.t - t <= tolerance;
-  }
-  if (t >= newest.t) {
-    pose = newest;
-    return t - newest.t <= tolerance;
-  }
+  if (odom_history_.empty() || t < odom_history_.front().t || t > odom_history_.back().t) return false;
 
   for (size_t i = 1; i < odom_history_.size(); ++i) {
     const Pose2D& a = odom_history_[i - 1];
@@ -104,7 +87,8 @@ bool MapMemoryNode::poseAt(double t, Pose2D& pose) const {
     pose.yaw = a.yaw + f * dyaw;
     return true;
   }
-  return false;
+  pose = odom_history_.back();  // t is exactly the newest reading
+  return true;
 }
 
 // Timer-based map update: fuse when the robot has moved far enough, or when
@@ -112,14 +96,23 @@ bool MapMemoryNode::poseAt(double t, Pose2D& pose) const {
 // or turns on the spot (e.g. at an exploration frontier): it can see new
 // space without moving 1.5 m, and the map should show it.
 void MapMemoryNode::updateMap() {
-  if (!have_costmap_) return;
+  // Use the newest costmap that has odometry on both sides of its scan time.
+  // Odometry only comes 10 times a second, so the newest scan is usually
+  // newer than the newest reading. Placing it with that reading instead can
+  // be 0.1 s out, and while turning at 1 rad/s that swings a wall 15 m away
+  // by more than a metre.
+  const nav_msgs::msg::OccupancyGrid* costmap = nullptr;
+  Pose2D p{};
+  for (auto it = recent_costmaps_.rbegin(); it != recent_costmaps_.rend() && !costmap; ++it) {
+    if (poseAt(rclcpp::Time(it->header.stamp).seconds(), p)) costmap = &*it;
+  }
+  if (!costmap) return;
 
-  const Pose2D& p = costmap_pose_;
   double moved = std::hypot(p.x - last_update_x_, p.y - last_update_y_);
   double age = first_update_done_ ? (this->now() - last_update_time_).seconds() : 0.0;
   if (first_update_done_ && moved < distance_threshold_ && age < max_update_interval_) return;
 
-  map_memory_.integrateCostmap(latest_costmap_, p.x, p.y, p.yaw);
+  map_memory_.integrateCostmap(*costmap, p.x, p.y, p.yaw);
   last_update_x_ = p.x;
   last_update_y_ = p.y;
   last_update_time_ = this->now();

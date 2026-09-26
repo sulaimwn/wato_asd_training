@@ -33,10 +33,8 @@ class MapMemoryNode : public rclcpp::Node {
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_pub_;
     rclcpp::TimerBase::SharedPtr timer_;
 
-    // Latest costmap and the robot pose at the moment it was taken
-    nav_msgs::msg::OccupancyGrid latest_costmap_;
-    Pose2D costmap_pose_{};
-    bool have_costmap_ = false;
+    // Recent costmaps, newest last, waiting for the odometry to catch up with them
+    std::deque<nav_msgs::msg::OccupancyGrid> recent_costmaps_;
 
     // Recent odometry, used to look up the pose at a costmap's timestamp
     std::deque<Pose2D> odom_history_;
