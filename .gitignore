@@ -3,3 +3,6 @@ __pycache__
 .vscode/
 
 watod-config.local.sh
+
+# Course runs (tools/course/run_course.sh)
+tools/course/results/
